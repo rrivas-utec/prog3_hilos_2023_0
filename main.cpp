@@ -4,6 +4,7 @@
 #include <random>
 #include <algorithm>
 #include <numeric>
+#include <cassert>
 using namespace std;
 
 void f1() {
@@ -96,46 +97,76 @@ void ejemplo_hilo_vacio() {
     t1.join();
 }
 
-void sumar_rango(int start, int stop, vector<int>& data, int& total) {
-    total = 0;
-    for (int i = start; i < stop; ++i)
-        total += data[i];
-}
-
 ostream& operator<<(ostream& os, const vector<int>& v) {
     for (const auto& item: v)
         os << item << " ";
     return os;
 }
 
-void ejemplo_vector_hilos() {
+void sumar_rango(int start, int stop, const vector<int>& data, int& total) {
+    total = 0;
+    for (int i = start; i < stop; ++i)
+        total += data[i];
+}
+
+template <typename T, int sz>
+vector<T> generar_vector_aleatorio(int first, int last) {
     random_device rd;
+    uniform_int_distribution<int> dis(first, last);
+    vector<T> v(sz);
+    generate(begin(v), end(v), [&]{ return dis(rd); });
+    return v;
+}
 
+void ejemplo_multiples_hilos_1() {
     // vector aleatorio de 100 valores
-    vector<int> v1 (100);
-    for (auto& item: v1)
-        item = rd() % 20;
+    auto v1 = generar_vector_aleatorio<int, 100>(1, 20);
+    cout << v1 << endl;
 
-//    cout << v1 << endl;
+    int total = accumulate(begin(v1), end(v1), 0);
 
-    int total = 0;
-    for (const auto& item: v1)
-        total += item;
-    cout << total << endl;
-//
     vector<int> resultados(4);
     thread t1(sumar_rango, 0, 25, ref(v1), ref(resultados[0]));
     thread t2(sumar_rango, 25, 50, ref(v1), ref(resultados[1]));
     thread t3(sumar_rango, 50, 75, ref(v1), ref(resultados[2]));
     thread t4(sumar_rango, 75, 100, ref(v1), ref(resultados[3]));
-//
-//    t1.join();
-//    t2.join();
-//    t3.join();
-//    t4.join();
 
-//    auto total_final = accumulate(begin(rt), end(rt), 0);
-//    cout << total_final << endl;
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+
+    auto total_paral = accumulate(begin(resultados), end(resultados), 0);
+    cout << total << " == " << total_paral << endl;
+}
+
+void ejemplo_multiples_hilos_vector() {
+    auto vd = generar_vector_aleatorio<int, 100>(1, 20);
+
+    assert(vd.size() == 100);
+
+    const int sz_thread = 4;
+    vector<thread> vh(sz_thread);
+    vector<int> resultados(sz_thread);
+
+    auto range = 25;
+    auto i = 0;
+
+    for (auto& hilo: vh) {
+        hilo = thread(sumar_rango,
+                       range * i ,
+                       range * (i + 1),
+                       ref(vd),
+                       ref(resultados[i]));
+        ++i;
+    }
+
+    for (auto& hilo: vh)
+        hilo.join();
+
+    auto total = accumulate(begin(vd), end(vd), 0);
+    auto total_paral = accumulate(begin(resultados), end(resultados), 0);
+    cout << total << " == " << total_paral << endl;
 }
 
 int main() {
@@ -144,6 +175,7 @@ int main() {
 //    ejemplo_hilo_asignado_metodo();
 //    ejemplo_hilo_asignado_metodo_lambda();
 //    ejemplo_hilo_vacio();
-    ejemplo_vector_hilos();
+//    ejemplo_multiples_hilos_1();
+    ejemplo_multiples_hilos_vector();
     return 0;
 }
